@@ -9,7 +9,7 @@ Instead of updating the billions of parameters in a pretrained transformer durin
 ## Model Overview
 
 <p align="center">
-  <img src="PLA_Architecture.png" alt="PLA architecture" width="100%">
+  <img src="architecture_PLA.png" alt="PLA architecture" width="100%">
 </p>
 
 PLA introduces a lightweight trainable adapter between the frozen transformer backbone and the frozen prediction head. Rather than modifying the pretrained transformer weights, PLA operates on the hidden representations produced by the backbone.
