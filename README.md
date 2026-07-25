@@ -1,4 +1,4 @@
-# PLA_LLM: Predictive Latent Adapter for Large Language Models
+# PLA_LLM: Predictive Latent Adapter for LLMs
 
 **Predictive Latent Adapter (PLA)** is a lightweight plug-and-play framework for adapting **frozen Large Language Models (LLMs)** through latent representation refinement.
 
