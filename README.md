@@ -1,105 +1,107 @@
 # PLA_LLM: Predictive Latent Adapter for LLMs
 
-**Predictive Latent Adapter (PLA)** is a lightweight plug-and-play framework for adapting **frozen Large Language Models (LLMs)** through **latent representation refinement**. Instead of updating billions of backbone parameters, PLA learns a compact trainable adapter that predicts how the model's latent representations should be refined to improve downstream predictions while keeping the original backbone and prediction head unchanged.
+**Predictive Latent Adapter (PLA)** is a lightweight plug-and-play framework for adapting **frozen Large Language Models (LLMs)** through **latent representation refinement**. Rather than updating billions of backbone parameters, PLA learns a compact trainable adapter that predicts how latent representations should be refined while keeping both the pretrained transformer backbone and prediction head unchanged.
 
 ---
 
 ## Model Overview
 
 <p align="center">
-  <img src="architecture.png" width="900">
+  <img src="architecture.png" width="100%">
 </p>
 
-The proposed PLA framework introduces a lightweight trainable adapter between the frozen transformer backbone and the prediction head.
+PLA introduces a lightweight trainable adapter between a frozen transformer backbone and the prediction head. Instead of modifying the transformer weights, PLA operates directly on the latent representations produced by the backbone.
 
 The workflow consists of five stages:
 
 1. **Input Processing** – Input tokens are embedded and processed by a frozen transformer backbone.
-2. **Hidden Representation Construction** – Hidden representations from all transformer layers are concatenated to form a unified latent representation.
+2. **Hidden Representation Construction** – Hidden representations from all transformer layers are concatenated to construct a unified latent representation.
 3. **Predictive Latent Adapter (PLA)** – A lightweight adapter predicts a latent correction together with an adaptive scaling factor to refine the latent representation.
-4. **Prediction** – The refined latent representation is passed to the frozen prediction head to produce the final output.
-5. **Training** – Gradients update only the PLA parameters, while both the transformer backbone and prediction head remain frozen.
+4. **Prediction** – The refined latent representation is passed through the frozen prediction head to produce the final prediction.
+5. **Training** – During optimization, gradients update only the PLA parameters while both the transformer backbone and prediction head remain frozen.
 
 ---
 
-## Mathematical Formulation
+# Mathematical Formulation
 
-Given an input sequence \(x\), the frozen transformer backbone produces hidden representations
+Given an input sequence $x$, the frozen transformer backbone produces hidden representations from all transformer layers
 
-\[
+$$
 H = [H_1; H_2; \cdots; H_L],
-\]
+$$
 
-where \(H_i\) denotes the hidden representation extracted from the \(i\)-th transformer layer.
+where $H_i$ denotes the hidden representation extracted from the $i$-th transformer layer.
 
-PLA predicts a latent correction
+The PLA module predicts a latent correction
 
-\[
+$$
 \Delta H = A_{\phi}(H),
-\]
+$$
 
-where \(A_{\phi}\) is the trainable adapter.
+where $A_{\phi}$ is the trainable adapter network.
 
 An adaptive gating function predicts an input-dependent scaling coefficient
 
-\[
+$$
 \alpha(H)\in[0,1].
-\]
+$$
 
 The refined latent representation is computed as
 
-\[
+$$
 H' = H + \alpha(H)\odot\Delta H,
-\]
+$$
 
-which is then passed to the frozen prediction head
+which is subsequently passed to the frozen prediction head
 
-\[
+$$
 \hat{y}=D(H').
-\]
+$$
 
 Only the parameters of the PLA module are optimized during training.
 
 ---
 
-## Training Objective
+# Training Objective
 
-PLA is optimized using a combination of task prediction loss and predictive latent refinement loss
+PLA is optimized using a combination of the downstream prediction loss and a predictive latent refinement loss
 
-\[
+$$
 \mathcal{L}
 =
-\lambda_{\text{out}}\mathcal{L}_{\text{out}}
+\lambda_{\mathrm{out}}\mathcal{L}_{\mathrm{out}}
 +
-\lambda_{\text{pred}}\mathcal{L}_{\text{pred}},
-\]
+\lambda_{\mathrm{pred}}\mathcal{L}_{\mathrm{pred}}.
+$$
 
 where
 
-- **Output Loss** (\(\mathcal{L}_{out}\)) supervises the downstream prediction.
-- **Predictive Latent Loss** (\(\mathcal{L}_{pred}\)) encourages meaningful latent refinements.
+- **Output Loss** ($\mathcal{L}_{\mathrm{out}}$) supervises the downstream prediction.
+- **Predictive Latent Loss** ($\mathcal{L}_{\mathrm{pred}}$) encourages meaningful latent refinements while preserving useful information.
 
 ---
 
-## Why PLA?
+# Why PLA?
 
-Unlike conventional parameter-efficient fine-tuning methods that modify internal transformer weights, PLA directly learns **how latent representations should evolve** while leaving the pretrained model unchanged.
+Conventional parameter-efficient fine-tuning methods (e.g., LoRA) adapt large language models by modifying internal transformer parameters through additional trainable weights.
+
+PLA explores an alternative adaptation strategy by **learning how latent representations should be refined**, while leaving the pretrained transformer entirely unchanged.
 
 Key characteristics include:
 
-- Plug-and-play architecture
+- Lightweight plug-and-play architecture
 - Frozen transformer backbone
 - Frozen prediction head
-- Lightweight trainable adapter
 - Latent representation refinement
 - Parameter-efficient adaptation
-- End-to-end optimization through task loss
+- End-to-end optimization through task supervision
+- Compatible with existing pretrained LLMs
 
 ---
 
-## Initial Experimental Plan
+# Initial Experimental Plan
 
-The first public implementation of PLA will be evaluated on **TinyLlama** as a lightweight proof-of-concept.
+The first implementation of PLA will be evaluated using **TinyLlama** as a lightweight proof-of-concept.
 
 The initial benchmark will compare:
 
@@ -109,21 +111,23 @@ The initial benchmark will compare:
 | LoRA | TinyLlama |
 | **PLA (Proposed)** | TinyLlama |
 
-The first study will focus on evaluating whether latent representation refinement can reduce training cost while maintaining competitive downstream performance.
+The primary objective of the initial study is to investigate whether latent representation refinement can reduce training cost while maintaining competitive downstream performance.
 
 The evaluation will include:
 
-- Task performance
+- Downstream task performance
 - Number of trainable parameters
 - GPU memory consumption
 - Training time
 - Overall training efficiency
 
+Following the initial proof-of-concept, PLA will be extended to larger open-source language models.
+
 ---
 
-## Project Status
+# Project Status
 
-🚧 **This repository is currently under active development.**
+🚧 **PLA_LLM is currently under active development.**
 
 Current progress:
 
@@ -132,6 +136,21 @@ Current progress:
 - ✅ Mathematical formulation
 - 🔄 PyTorch implementation
 - 🔄 Initial TinyLlama experiments
-- 🔄 PLA vs LoRA benchmark
+- 🔄 LoRA comparison
+- 🔄 Initial benchmark results
 
-The repository will be continuously updated with implementation details, experimental results, and benchmark comparisons.
+This repository will be continuously updated as implementation progresses, including source code, benchmark results, experimental analysis, and documentation.
+
+---
+
+# Citation
+
+If you find this project useful, please consider starring the repository.
+
+A research preprint describing PLA is planned for future release.
+
+---
+
+# License
+
+This project is released under the MIT License.
