@@ -9,16 +9,16 @@ Instead of updating the billions of parameters in a pretrained transformer durin
 ## Model Overview
 
 <p align="center">
-  <img src="architecture_PLA.png" alt="PLA architecture" width="100%">
+  <img src="architecture_v2.png" alt="PLA architecture" width="100%">
 </p>
 
-PLA introduces a lightweight trainable adapter between the frozen transformer backbone and the frozen prediction head. Rather than modifying the pretrained transformer weights, PLA operates on the hidden representations produced by the backbone.
+PLA introduces a lightweight trainable adapter between the frozen transformer backbone and the frozen prediction head. Rather than modifying the pretrained transformer weights, PLA operates directly on the hidden representations produced by the backbone.
 
 The framework consists of five principal stages:
 
 1. **Input processing** — Input tokens are converted into embeddings and processed by the frozen transformer backbone.
-2. **Hidden-state construction** — Hidden representations from the selected transformer layers are concatenated into a unified latent representation.
-3. **Predictive Latent Adapter** — The trainable PLA module predicts a latent correction and an input-dependent scaling factor.
+2. **Hidden-state construction** — Hidden representations from selected transformer layers are concatenated to construct a unified latent representation.
+3. **Predictive Latent Adapter** — The trainable PLA module predicts a latent correction together with an input-dependent scaling factor.
 4. **Prediction** — The refined latent representation is passed to the frozen language-model head.
 5. **Optimization** — Gradients update only the PLA parameters, while the transformer backbone and prediction head remain frozen.
 
@@ -28,11 +28,11 @@ The framework consists of five principal stages:
 
 Modern LLMs may contain billions of parameters. Updating the complete model during fine-tuning can therefore require substantial GPU memory, computational time, and energy.
 
-PLA investigates whether effective adaptation can instead be achieved by optimizing a much smaller module operating on the model’s hidden representations.
+PLA investigates whether effective adaptation can instead be achieved by optimizing a much smaller module operating on the model's hidden representations.
 
-The main hypothesis is:
+The central hypothesis is:
 
-> Once a pretrained transformer has learned informative internal representations, downstream adaptation may be achieved by learning how those representations should be corrected, without repeatedly updating the entire backbone.
+> Once a pretrained transformer has learned informative internal representations, downstream adaptation may be achieved by learning how those representations should be corrected without repeatedly updating the entire backbone.
 
 PLA therefore separates the large frozen language model from a compact trainable latent-refinement module.
 
@@ -40,25 +40,25 @@ PLA therefore separates the large frozen language model from a compact trainable
 
 ## Mathematical Formulation
 
-Given an input sequence \(x\), the frozen transformer backbone produces hidden representations from \(L\) selected layers:
+Given an input sequence $x$, the frozen transformer backbone produces hidden representations from $L$ selected layers:
 
 ```math
 H_1, H_2, \ldots, H_L.
 ```
 
-These hidden representations are concatenated to construct the latent representation supplied to PLA:
+These representations are concatenated to construct the latent representation supplied to PLA:
 
 ```math
 H = [H_1; H_2; \cdots; H_L].
 ```
 
-The trainable adapter network predicts a latent correction:
+The trainable adapter predicts a latent correction:
 
 ```math
 \Delta H = A_{\phi}(H),
 ```
 
-where \(A_{\phi}\) denotes the adapter network with trainable parameters \(\phi\).
+where $A_{\phi}$ denotes the adapter network and $\phi$ represents its trainable parameters.
 
 A lightweight gating function produces an input-dependent scaling coefficient:
 
@@ -72,7 +72,7 @@ PLA then computes the refined latent representation:
 H' = H + \alpha(H)\odot\Delta H.
 ```
 
-Equivalently:
+Substituting the predicted correction gives:
 
 ```math
 H' = H + \alpha(H)\odot A_{\phi}(H).
@@ -84,9 +84,9 @@ The refined representation is passed to the frozen prediction head:
 \hat{y} = D(H'),
 ```
 
-where \(D(\cdot)\) denotes the frozen language-model head.
+where $D(\cdot)$ denotes the frozen language-model head.
 
-During training, only the parameters of \(A_{\phi}\) and the gating function are updated.
+During training, only the parameters of the adapter network $A_{\phi}$ and the gating function $\alpha(H)$ are updated.
 
 ---
 
@@ -104,9 +104,9 @@ PLA is trained by minimizing a combination of the downstream prediction loss and
 
 Here:
 
-- \(\mathcal{L}_{\mathrm{out}}\) is the downstream task loss, such as cross-entropy for next-token prediction.
-- \(\mathcal{L}_{\mathrm{pred}}\) encourages the adapter to learn useful latent corrections.
-- \(\lambda_{\mathrm{out}}\) and \(\lambda_{\mathrm{pred}}\) control the relative contribution of the two objectives.
+- $\mathcal{L}_{\mathrm{out}}$ is the downstream task loss, such as cross-entropy for next-token prediction.
+- $\mathcal{L}_{\mathrm{pred}}$ encourages the adapter to learn useful latent corrections.
+- $\lambda_{\mathrm{out}}$ and $\lambda_{\mathrm{pred}}$ control the relative contribution of the two objectives.
 
 The transformer backbone and prediction head participate in the forward and backward computational graph, but their parameters remain frozen. Optimizer updates are applied only to the PLA module.
 
@@ -114,12 +114,12 @@ The transformer backbone and prediction head participate in the forward and back
 
 ## Parameter-Efficient Adaptation
 
-The hidden representation \(H\) is an activation produced during the forward pass; it is not itself a set of trainable parameters.
+The hidden representation $H$ is an activation produced during the forward pass. It is not itself a collection of trainable parameters.
 
 The trainable parameter count of PLA is determined by the architecture of:
 
-- the adapter network \(A_{\phi}\),
-- the gating or scaling function \(\alpha(H)\).
+- the adapter network $A_{\phi}$;
+- the gating or scaling function $\alpha(H)$.
 
 Therefore, the number of PLA parameters does not need to equal the number of values contained in the concatenated hidden representation.
 
@@ -146,19 +146,31 @@ W_{\mathrm{up}} \in \mathbb{R}^{r \times d},
 r \ll d.
 ```
 
-With this bottleneck structure, the approximate number of adapter parameters is:
+Here, $d$ is the latent representation dimension and $r$ is a smaller bottleneck dimension.
+
+For this bottleneck structure, the approximate number of adapter parameters is:
+
+```math
+N_{\mathrm{adapter}}
+\approx
+2dr,
+```
+
+excluding bias terms and the parameters of the gating network.
+
+Including the gating network, the approximate PLA parameter count becomes:
 
 ```math
 N_{\mathrm{PLA}}
 \approx
 2dr
 +
-N_{\mathrm{gate}},
+N_{\mathrm{gate}}.
 ```
 
-rather than \(d^2\), provided that the bottleneck dimension \(r\) is much smaller than the latent dimension \(d\).
+Because $r$ can be chosen substantially smaller than $d$, PLA can contain far fewer trainable parameters than the complete transformer backbone.
 
-By comparison, full fine-tuning updates all model parameters:
+Full fine-tuning updates all model parameters:
 
 ```math
 N_{\mathrm{trainable}}^{\mathrm{full}}
@@ -168,7 +180,7 @@ N_{\mathrm{backbone}}
 N_{\mathrm{head}}.
 ```
 
-PLA instead updates only:
+PLA instead updates only the adapter and gating components:
 
 ```math
 N_{\mathrm{trainable}}^{\mathrm{PLA}}
@@ -178,7 +190,7 @@ N_{\mathrm{adapter}}
 N_{\mathrm{gate}}.
 ```
 
-The trainable-parameter ratio can therefore be reported as:
+The percentage of trainable parameters can be reported as:
 
 ```math
 \rho_{\mathrm{PLA}}
@@ -191,7 +203,7 @@ N_{\mathrm{total}}
 \times 100\%.
 ```
 
-The exact parameter count and reduction percentage will be reported after the first implementation is finalized.
+The exact PLA parameter count and reduction percentage will be reported after the first implementation is finalized.
 
 ---
 
@@ -199,12 +211,12 @@ The exact parameter count and reduction percentage will be reported after the fi
 
 By freezing the pretrained backbone and updating only the PLA module, the framework is designed to provide:
 
-- substantially fewer trainable parameters than full fine-tuning,
-- reduced optimizer-state memory,
-- reduced gradient-storage requirements,
-- lower GPU-memory consumption,
-- shorter adaptation time,
-- lower computational and energy cost,
+- substantially fewer trainable parameters than full fine-tuning;
+- reduced optimizer-state memory;
+- reduced gradient-storage requirements;
+- lower peak GPU-memory consumption;
+- shorter adaptation time;
+- lower computational and energy cost;
 - preservation of the original pretrained model weights.
 
 These are currently design objectives. Quantitative claims will be added after controlled benchmarking.
@@ -217,18 +229,18 @@ Most parameter-efficient fine-tuning methods introduce trainable components with
 
 PLA explores a different adaptation mechanism:
 
-> It learns how the model’s hidden representation should change before prediction, while leaving the original transformer parameters unchanged.
+> PLA learns how the model's hidden representation should change before prediction while leaving the original transformer parameters unchanged.
 
-Key characteristics include:
+The main characteristics of PLA are:
 
-- lightweight plug-and-play design,
-- frozen transformer backbone,
-- frozen language-model head,
-- direct latent-representation refinement,
-- input-dependent correction scaling,
-- end-to-end optimization through the final task loss,
-- compatibility with pretrained transformer models,
-- reduced number of trainable parameters.
+- lightweight plug-and-play design;
+- frozen transformer backbone;
+- frozen language-model head;
+- direct latent-representation refinement;
+- input-dependent correction scaling;
+- end-to-end optimization through the final task loss;
+- compatibility with pretrained transformer models;
+- substantially fewer trainable parameters than full fine-tuning.
 
 ---
 
@@ -241,17 +253,18 @@ The initial study will compare:
 | Method | Backbone | Trainable component |
 |---|---|---|
 | Full fine-tuning | TinyLlama | Complete model |
-| LoRA | TinyLlama | Low-rank parameter updates |
+| LoRA | TinyLlama | Low-rank adaptation parameters |
 | **PLA** | TinyLlama | Latent adapter and gating network |
 
 The evaluation will focus on:
 
-- downstream task performance,
-- number and percentage of trainable parameters,
-- peak GPU-memory consumption,
-- training time,
-- convergence behavior,
-- computational cost,
+- downstream task performance;
+- number of trainable parameters;
+- percentage of trainable parameters;
+- peak GPU-memory consumption;
+- training time;
+- convergence behavior;
+- computational cost;
 - estimated energy efficiency.
 
 The initial objective is not to claim state-of-the-art performance. It is to determine whether PLA can maintain competitive task performance while updating substantially fewer parameters than full fine-tuning.
